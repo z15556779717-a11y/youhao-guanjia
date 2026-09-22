@@ -1461,7 +1461,12 @@ function renderPriceHint() {
   const manual = Math.max(0, num(v.fuelPrice));
   let src;
   if (manual > 0) src = '按手动油价 ¥' + fmt(manual) + '/L 计算（清空油价可改回自动）';
-  else if (dp > 0) src = '按' + DAILY_PRICE.province + '今日油价 ¥' + fmt(dp) + '/L 自动计算（' + DAILY_PRICE.date + ' 更新）';
+  else if (dp > 0) {
+    const ageDays = Math.floor((Date.now() - new Date(DAILY_PRICE.date + 'T00:00:00').getTime()) / 86400000);
+    src = ageDays > 15
+      ? '内置油价为 ' + DAILY_PRICE.date + ' ' + DAILY_PRICE.province + '价（¥' + fmt(dp) + '/L），可能已过期；加油时同时填金额和升数可自动校准'
+      : '按' + DAILY_PRICE.province + '今日油价 ¥' + fmt(dp) + '/L 自动计算（' + DAILY_PRICE.date + ' 更新）';
+  }
   else src = '暂无油价数据，请手动填写油价';
   if ($('priceHint')) $('priceHint').textContent = src;
   if ($('convHint')) $('convHint').textContent = src + '，填一个另一个自动算出';
@@ -1491,6 +1496,7 @@ function addRecord() {
   const odo = num($('logOdo').value);
   let fuel = num($('logFuel').value);
   let cost = num($('logCost').value);
+  const bothFilled = fuel > 0 && cost > 0;
   // 双保险：只填了金额时按当前油价反算升数
   const p = effPrice(v);
   if (fuel <= 0 && cost > 0 && p > 0) fuel = cost / p;
@@ -1506,12 +1512,22 @@ function addRecord() {
     fuel: fuel,
     cost: cost > 0 ? +cost.toFixed(2) : 0
   });
+  // 金额与升数都由用户填写：用本次真实单价校准默认油价
+  let priceNote = '';
+  if (bothFilled) {
+    const real = +(cost / fuel).toFixed(2);
+    if (real > 0 && real !== num(v.fuelPrice)) {
+      v.fuelPrice = real;
+      priceNote = '，本次单价 ¥' + fmt(real) + '/L 已设为默认油价';
+    }
+  }
   save();
   $('logOdo').value = '';
   $('logFuel').value = '';
   $('logCost').value = '';
   renderRecords();
-  toast('已保存');
+  renderPriceHint();
+  toast('已保存' + priceNote);
 }
 
 function delRecord(i) {
@@ -2051,12 +2067,19 @@ function bindMaint() {
 
 /* ================= 高德路线规划（融合在「行程路段」中，Key 仅存本机） ================= */
 async function amapFetch(url) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 10000);
   let data;
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: ctrl.signal });
     data = await res.json();
   } catch (e) {
+    if (e && e.name === 'AbortError') {
+      throw new Error('请求超时（超过 10 秒无响应），网络可能较慢，可点「重试」');
+    }
     throw new Error('网络请求失败，请检查网络连接（离线状态无法规划路线）');
+  } finally {
+    clearTimeout(timer);
   }
   if (data.status !== '1') throw new Error(amapErrorText(data.info, data.infocode));
   return data;
