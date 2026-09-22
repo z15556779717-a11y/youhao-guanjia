@@ -1,0 +1,2201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="行车费用">
+<meta name="theme-color" content="#f3f3f0">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<title>油耗管家</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  :root {
+    --bg: #f3f3f0;
+    --card: #ffffff;
+    --ink: #17181c;
+    --ink-2: #787b82;
+    --ink-3: #a8abb2;
+    --line: #e6e6e1;
+    --accent: #e8590c;
+    --accent-soft: #fdede1;
+    --green: #2b8a3e;
+    --green-soft: #e6f4ea;
+    --red: #e03131;
+    --red-soft: #fdecec;
+    --amber: #e8890c;
+    --amber-soft: #fdf3e1;
+    --radius: 16px;
+  }
+  html { font-size: 16px; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    min-height: 100vh;
+    padding-bottom: calc(84px + env(safe-area-inset-bottom));
+    -webkit-font-smoothing: antialiased;
+  }
+  .ic { width: 18px; height: 18px; display: inline-block; vertical-align: -3px; }
+  .ic-lg { width: 22px; height: 22px; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* ===== 顶部 ===== */
+  .topbar {
+    background: var(--bg);
+    padding: calc(20px + env(safe-area-inset-top)) 20px 4px;
+    max-width: 560px; margin: 0 auto;
+  }
+  .topbar h1 { font-size: 1.5rem; font-weight: 800; letter-spacing: -.5px; }
+  .topbar p { font-size: .78rem; color: var(--ink-2); margin-top: 4px; }
+
+  /* ===== 车辆切换 ===== */
+  .vehbar {
+    max-width: 560px; margin: 12px auto 0; padding: 0 16px;
+    display: flex; gap: 8px; align-items: center;
+  }
+  .vehbar .veh-picker {
+    flex: 1; min-width: 0; display: flex; align-items: center; justify-content: space-between;
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px 13px; font-size: .95rem; font-weight: 700; font-family: inherit;
+    color: var(--ink); cursor: pointer; text-align: left;
+  }
+  .veh-picker:active { background: var(--bg); }
+  .chev {
+    width: 9px; height: 9px; flex-shrink: 0; margin-left: 8px;
+    border-right: 2px solid var(--ink-3); border-bottom: 2px solid var(--ink-3);
+    transform: rotate(45deg) translateY(-2px);
+  }
+  .veh-btn {
+    width: 44px; height: 44px; flex-shrink: 0; border: 1px solid var(--line);
+    border-radius: 12px; background: var(--card); cursor: pointer; color: var(--ink);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .veh-btn:active { background: var(--bg); }
+
+  /* ===== 底部弹出选择器（替代原生下拉，iPhone 上更可靠） ===== */
+  .sheet-mask {
+    position: fixed; inset: 0; background: rgba(23,24,28,.42); z-index: 300;
+    opacity: 0; pointer-events: none; transition: opacity .25s;
+  }
+  .sheet-mask.show { opacity: 1; pointer-events: auto; }
+  .sheet {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 301;
+    max-width: 560px; margin: 0 auto; background: var(--card);
+    border-radius: 18px 18px 0 0; padding: 8px 16px calc(18px + env(safe-area-inset-bottom));
+    transform: translateY(105%); transition: transform .28s ease;
+    max-height: 62vh; overflow-y: auto;
+  }
+  .sheet.show { transform: translateY(0); }
+  .sheet-grip { width: 38px; height: 4px; border-radius: 2px; background: var(--line); margin: 6px auto 2px; }
+  .sheet-title {
+    text-align: center; font-size: .74rem; color: var(--ink-2); font-weight: 600;
+    letter-spacing: 1px; padding: 8px 0 10px;
+  }
+  .sheet-opt {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 15px 6px; border-top: 1px solid var(--line);
+    font-size: .98rem; font-weight: 600; cursor: pointer;
+  }
+  .sheet-opt:first-of-type { border-top: none; }
+  .sheet-opt:active { background: var(--bg); }
+  .sheet-opt .sub { display: block; font-size: .74rem; color: var(--ink-3); font-weight: 400; margin-top: 3px; }
+  .sheet-opt .check { color: var(--accent); visibility: hidden; flex-shrink: 0; }
+  .sheet-opt.on .check { visibility: visible; }
+  .sheet-empty { text-align: center; color: var(--ink-3); font-size: .84rem; padding: 26px 0; line-height: 1.7; }
+
+  /* ===== 容器与卡片 ===== */
+  .container { max-width: 560px; margin: 0 auto; padding: 12px 16px 0; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 18px;
+    margin-bottom: 12px;
+  }
+  .card-title {
+    font-size: .72rem; font-weight: 700; letter-spacing: 1.5px; color: var(--ink-2);
+    margin-bottom: 14px; display: flex; align-items: center; gap: 8px;
+  }
+  .card-title .tick { width: 3px; height: 13px; border-radius: 2px; background: var(--accent); }
+
+  /* ===== 表单 ===== */
+  .row { display: flex; gap: 10px; }
+  .row > * { flex: 1; min-width: 0; }
+  .field { margin-bottom: 12px; }
+  .field:last-child { margin-bottom: 0; }
+  label { display: block; font-size: .74rem; color: var(--ink-2); margin-bottom: 6px; font-weight: 600; }
+  input, select {
+    width: 100%; padding: 12px 13px; border: 1px solid var(--line); border-radius: 11px;
+    font-size: 1rem; font-family: inherit; color: var(--ink); background: var(--card);
+    appearance: none; -webkit-appearance: none;
+  }
+  input:focus, select:focus { outline: none; border-color: var(--ink); }
+  input::placeholder { color: var(--ink-3); }
+  input[type=number] { -moz-appearance: textfield; }
+  input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; }
+  select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a8abb2' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 13px center; padding-right: 34px;
+  }
+  .hint { font-size: .72rem; color: var(--ink-3); margin-top: 6px; line-height: 1.6; }
+  .hint a { color: var(--accent); font-weight: 600; text-decoration: none; }
+  .hint a:active { opacity: .8; }
+
+  /* ===== 常用路线 ===== */
+  .route-row { display: flex; gap: 8px; margin-bottom: 8px; }
+  .route-picker {
+    flex: 1; min-width: 0; display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 13px; border: 1px solid var(--line); border-radius: 11px;
+    font-size: .92rem; font-family: inherit; color: var(--ink); background: var(--card);
+    cursor: pointer; text-align: left;
+  }
+  .route-picker:active { background: var(--bg); }
+  .route-picker .ph { color: var(--ink-3); }
+  .btn-mini {
+    padding: 10px 14px; border: 1px solid var(--line); border-radius: 11px; background: var(--card);
+    font-size: .78rem; font-weight: 600; font-family: inherit; cursor: pointer; color: var(--ink-2);
+    white-space: nowrap;
+  }
+  .btn-mini.primary { border-color: var(--ink); color: var(--ink); }
+  .btn-mini.danger { color: var(--red); }
+
+  /* ===== 往返开关 ===== */
+  .toggle-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 0 0; margin-top: 12px; border-top: 1px solid var(--line);
+  }
+  .toggle-row span { font-size: .88rem; font-weight: 600; }
+  .switch { position: relative; width: 48px; height: 28px; flex-shrink: 0; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider {
+    position: absolute; inset: 0; background: #d6d6d0; border-radius: 28px;
+    transition: .25s; cursor: pointer;
+  }
+  .slider::before {
+    content: ""; position: absolute; width: 22px; height: 22px; left: 3px; top: 3px;
+    background: #fff; border-radius: 50%; transition: .25s;
+    box-shadow: 0 1px 3px rgba(0,0,0,.18);
+  }
+  .switch input:checked + .slider { background: var(--ink); }
+  .switch input:checked + .slider::before { transform: translateX(20px); }
+
+  /* ===== 行程段 ===== */
+  .segment {
+    border: 1px solid var(--line); border-radius: 12px; padding: 13px;
+    margin-bottom: 10px; background: #fafaf8;
+  }
+  .segment-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .segment-head b { font-size: .8rem; color: var(--ink); }
+  .del-seg {
+    border: none; background: none; color: var(--ink-3); font-size: .76rem; cursor: pointer;
+    padding: 4px 6px; font-family: inherit; font-weight: 600;
+  }
+  .del-seg:active { color: var(--red); }
+  .btn-add {
+    width: 100%; padding: 12px; border: 1px dashed var(--ink-3); border-radius: 11px;
+    background: transparent; color: var(--ink-2); font-size: .85rem; font-weight: 600;
+    cursor: pointer; font-family: inherit;
+  }
+  .btn-add:active { background: var(--bg); }
+
+  /* ===== 路段地图规划 ===== */
+  .seg-plan-row { display: flex; gap: 8px; margin-top: 4px; }
+  .btn-plan {
+    flex: 1; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--card); color: var(--ink); font-size: .78rem; font-weight: 700;
+    font-family: inherit; cursor: pointer; white-space: nowrap;
+  }
+  .btn-plan:active { background: var(--bg); }
+  .btn-plan:disabled { opacity: .55; cursor: default; }
+  .seg-plan-msg {
+    margin-top: 8px; border-radius: 10px; padding: 9px 11px; font-size: .74rem;
+    line-height: 1.55; font-weight: 600;
+  }
+  .seg-plan-msg.ok { background: var(--green-soft); color: var(--green); }
+  .seg-plan-msg.err { background: var(--red-soft); color: var(--red); }
+  .seg-plan-msg.info { background: var(--accent-soft); color: var(--accent); }
+  .link-btn {
+    border: none; background: none; padding: 0; font: inherit; color: var(--accent);
+    text-decoration: underline; cursor: pointer; font-size: inherit;
+  }
+
+  /* ===== 结果 Hero ===== */
+  .hero {
+    background: #16171c;
+    border-radius: var(--radius); padding: 22px 20px; color: #fff; margin-bottom: 12px;
+  }
+  .hero .label { font-size: .72rem; letter-spacing: 1.5px; color: #9a9da5; font-weight: 700; }
+  .hero .amount {
+    font-size: 2.5rem; font-weight: 800; margin: 6px 0 4px; letter-spacing: -1px;
+    font-variant-numeric: tabular-nums;
+  }
+  .hero .per-km { font-size: .8rem; color: #9a9da5; }
+  .hero .per-km b { color: var(--accent); font-weight: 700; }
+
+  /* ===== 续航校验横幅 ===== */
+  .rc {
+    border-radius: 12px; padding: 13px 15px; font-size: .83rem; font-weight: 600;
+    margin-bottom: 12px; line-height: 1.6; display: flex; gap: 9px; align-items: flex-start;
+  }
+  .rc .ic { flex-shrink: 0; margin-top: 1px; }
+  .rc-ok { background: var(--green-soft); color: var(--green); }
+  .rc-warn { background: var(--amber-soft); color: var(--amber); }
+  .rc-danger { background: var(--red-soft); color: var(--red); }
+
+  /* ===== 结果网格 ===== */
+  .result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .result-item {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 14px 15px;
+  }
+  .result-item .k {
+    font-size: .72rem; color: var(--ink-2); font-weight: 600;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .result-item .k .ic { width: 15px; height: 15px; vertical-align: 0; }
+  .result-item .v { font-size: 1.2rem; font-weight: 800; margin-top: 5px; font-variant-numeric: tabular-nums; letter-spacing: -.3px; }
+  .result-item .v small { font-size: .72rem; font-weight: 500; color: var(--ink-3); }
+  .v.fuel { color: var(--amber); }
+  .v.toll { color: var(--green); }
+  .v.danger { color: var(--red) !important; }
+
+  /* ===== 续航摘要卡 ===== */
+  .range-card { cursor: pointer; }
+  .range-card .hint-link { font-size: .82rem; color: var(--ink-2); }
+  .range-line {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: .86rem; padding: 7px 0; border-bottom: 1px solid var(--line);
+  }
+  .range-line:last-child { border-bottom: none; }
+  .range-line .rl-k { color: var(--ink-2); display: flex; align-items: center; gap: 7px; }
+  .range-line .rl-k .ic { width: 15px; height: 15px; vertical-align: 0; }
+  .range-line b { font-weight: 800; font-variant-numeric: tabular-nums; }
+  .range-line b.danger { color: var(--red); }
+
+  /* ===== 油耗记录 ===== */
+  .record {
+    border: 1px solid var(--line); border-radius: 12px; padding: 13px;
+    margin-bottom: 10px; background: #fafaf8;
+  }
+  .record-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .record-top .date { font-size: .82rem; font-weight: 700; }
+  .badge {
+    font-size: .72rem; font-weight: 700; color: var(--green);
+    background: var(--green-soft); padding: 3px 10px; border-radius: 20px;
+    font-variant-numeric: tabular-nums;
+  }
+  .badge.na { color: var(--ink-2); background: var(--bg); }
+  .record-detail { font-size: .78rem; color: var(--ink-2); line-height: 1.8; }
+  .record-detail a { color: var(--accent); text-decoration: none; font-weight: 600; }
+  .btn-primary {
+    width: 100%; padding: 14px; border: none; border-radius: 12px; background: var(--ink);
+    color: #fff; font-size: .92rem; font-weight: 700; cursor: pointer; font-family: inherit;
+    letter-spacing: .5px;
+  }
+  .btn-primary:active { opacity: .85; }
+  .btn-ghost {
+    width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 12px;
+    background: var(--card); color: var(--ink-2); font-size: .82rem; cursor: pointer; font-family: inherit;
+    margin-top: 8px; font-weight: 600;
+  }
+  .empty { text-align: center; color: var(--ink-3); font-size: .8rem; padding: 24px 0; line-height: 1.8; }
+
+  /* ===== 油箱续航 ===== */
+  .seg-ctrl {
+    display: flex; gap: 4px; background: var(--bg); border-radius: 11px; padding: 4px; margin-bottom: 14px;
+  }
+  .seg-ctrl button {
+    flex: 1; padding: 9px 0; border: none; border-radius: 8px; background: transparent;
+    color: var(--ink-2); font-size: .8rem; font-weight: 600; font-family: inherit; cursor: pointer;
+  }
+  .seg-ctrl button.active {
+    background: var(--card); color: var(--ink); font-weight: 700;
+    box-shadow: 0 1px 3px rgba(0,0,0,.1);
+  }
+  .gauge-btns { display: flex; gap: 7px; }
+  .gauge-btns button {
+    flex: 1; padding: 13px 0; border: 1px solid var(--line); border-radius: 11px;
+    background: var(--card); font-size: .8rem; font-weight: 600; font-family: inherit;
+    cursor: pointer; color: var(--ink-2);
+  }
+  .gauge-btns button.active {
+    border-color: var(--ink); background: var(--ink); color: #fff; font-weight: 700;
+  }
+  .tank-now {
+    margin-top: 14px; padding-top: 13px; border-top: 1px solid var(--line);
+    font-size: .95rem; font-weight: 800; font-variant-numeric: tabular-nums;
+  }
+  .tank-now small { font-weight: 500; color: var(--ink-2); font-size: .75rem; }
+  .warn-banner {
+    background: var(--red-soft); color: var(--red); border-radius: 12px; padding: 13px 15px;
+    font-size: .85rem; font-weight: 700; margin-bottom: 12px;
+    display: flex; gap: 9px; align-items: center;
+  }
+
+  /* ===== 统计 ===== */
+  .stat-line {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: .85rem; padding: 10px 0; border-bottom: 1px solid var(--line);
+  }
+  .stat-line:last-child { border-bottom: none; }
+  .stat-line .m { font-weight: 700; }
+  .stat-line .d { color: var(--ink-3); font-size: .76rem; }
+  .stat-line b { font-variant-numeric: tabular-nums; }
+  textarea {
+    width: 100%; padding: 12px 13px; border: 1px solid var(--line); border-radius: 11px;
+    font-size: .78rem; font-family: inherit; resize: none; color: var(--ink); background: var(--card);
+  }
+  textarea:focus { outline: none; border-color: var(--ink); }
+
+  /* ===== 底部 Tab ===== */
+  .tabbar {
+    position: fixed; bottom: 0; left: 0; right: 0; background: var(--card);
+    border-top: 1px solid var(--line); display: flex;
+    padding-bottom: env(safe-area-inset-bottom); z-index: 100;
+  }
+  .tab {
+    flex: 1; text-align: center; padding: 8px 0 10px; cursor: pointer;
+    color: var(--ink-3); font-size: .68rem; font-weight: 600;
+  }
+  .tab .ic { display: block; margin: 0 auto 3px; }
+  .tab.active { color: var(--accent); }
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* Toast */
+  #toast {
+    position: fixed; left: 50%; bottom: 110px; transform: translateX(-50%) translateY(20px);
+    background: rgba(23,24,28,.94); color: #fff; padding: 11px 22px; border-radius: 24px;
+    font-size: .82rem; opacity: 0; transition: .3s; pointer-events: none; z-index: 200; white-space: nowrap;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<!-- SVG 图标库 -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-calc" viewBox="0 0 24 24">
+    <rect x="4" y="2.5" width="16" height="19" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    <line x1="8" y1="7" x2="16" y2="7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    <circle cx="8.5" cy="12" r="1.1" fill="currentColor"/><circle cx="12" cy="12" r="1.1" fill="currentColor"/><circle cx="15.5" cy="12" r="1.1" fill="currentColor"/>
+    <circle cx="8.5" cy="16" r="1.1" fill="currentColor"/><circle cx="12" cy="16" r="1.1" fill="currentColor"/>
+    <rect x="14.4" y="14.9" width="2.2" height="4.2" rx="0.6" fill="currentColor"/>
+  </symbol>
+  <symbol id="i-fuel" viewBox="0 0 24 24">
+    <path d="M5 21V6a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v15" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    <line x1="3" y1="21" x2="17" y2="21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    <rect x="7.5" y="7" width="5" height="4" rx="0.8" fill="none" stroke="currentColor" stroke-width="1.6"/>
+    <path d="M15 10h1.5a2 2 0 0 1 2 2v4.5a1.5 1.5 0 0 0 3 0V9l-2.5-2.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24">
+    <path d="M3 3v18h18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    <path d="M7 14l4-4 3 3 5-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24">
+    <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+  </symbol>
+  <symbol id="i-pencil" viewBox="0 0 24 24">
+    <path d="M4 20l1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19l-4 1z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+  </symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24">
+    <path d="M4 7h16M9.5 7V5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v2m4.5 0l-1 13a2 2 0 0 1-2 2H8.9a2 2 0 0 1-2-2l-1-13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+  <symbol id="i-city" viewBox="0 0 24 24">
+    <path d="M4 21V9l6-4v16M10 21V5l8 3v13M3 21h18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+  </symbol>
+  <symbol id="i-road" viewBox="0 0 24 24">
+    <path d="M6.5 3L3.5 21M17.5 3l3 18M12 4v3M12 10.5v3M12 17v3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+  </symbol>
+  <symbol id="i-wallet" viewBox="0 0 24 24">
+    <rect x="3" y="6" width="18" height="14" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    <path d="M3 10h18" stroke="currentColor" stroke-width="1.8"/>
+    <circle cx="16.5" cy="14.8" r="1.2" fill="currentColor"/>
+  </symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24">
+    <path d="M12 21s-6-5.3-6-10a6 6 0 1 1 12 0c0 4.7-6 10-6 10z" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    <circle cx="12" cy="11" r="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/>
+  </symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24">
+    <path d="M12 3.5L2.8 20h18.4L12 3.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+    <line x1="12" y1="9.5" x2="12" y2="14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    <circle cx="12" cy="16.8" r="1" fill="currentColor"/>
+  </symbol>
+  <symbol id="i-check" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    <path d="M8 12.5l2.7 2.7L16 9.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+</svg>
+
+<div class="topbar">
+  <h1>油耗管家</h1>
+  <p>油耗 · 油费 · 过路费，一站算清</p>
+</div>
+
+<!-- ==================== 车辆切换栏 ==================== -->
+<div class="vehbar">
+  <button class="veh-picker" id="vehPickerBtn" onclick="openVehicleSheet()">
+    <span id="vehPickerLabel">我的车</span><span class="chev"></span>
+  </button>
+  <button class="veh-btn" onclick="addVehicleUI()" title="添加车辆"><svg class="ic"><use href="#i-plus"/></svg></button>
+  <button class="veh-btn" onclick="renameVehicle()" title="重命名"><svg class="ic"><use href="#i-pencil"/></svg></button>
+  <button class="veh-btn" id="vehDelBtn" onclick="delVehicle()" title="删除当前车辆"><svg class="ic"><use href="#i-trash"/></svg></button>
+</div>
+
+<!-- ==================== 页面1：行程计算 ==================== -->
+<div class="page active" id="page-calc">
+  <div class="container">
+
+    <div class="card">
+      <div class="card-title"><span class="tick"></span>车辆设置</div>
+      <div class="row">
+        <div class="field">
+          <label>百公里油耗 (L)</label>
+          <input type="number" id="consumption" inputmode="decimal" placeholder="如 8.5" step="0.1" min="0">
+        </div>
+        <div class="field">
+          <label>油品</label>
+          <select id="fuelType">
+            <option value="92">92号汽油</option>
+            <option value="95">95号汽油</option>
+            <option value="98">98号汽油</option>
+            <option value="0">0号柴油</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>油价 (¥/L)</label>
+          <input type="number" id="fuelPrice" inputmode="decimal" placeholder="留空用今日价" step="0.01" min="0">
+        </div>
+      </div>
+      <div class="hint"><span id="priceHint"></span><br>油耗不确定？去「油耗记录」页用加满油法实测，可一键填回这里。</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="tick"></span>加油换算</div>
+      <div class="row">
+        <div class="field">
+          <label>加油金额 (¥)</label>
+          <input type="number" id="convCost" inputmode="decimal" placeholder="如 200" min="0">
+        </div>
+        <div class="field">
+          <label>可加油量 (L)</label>
+          <input type="number" id="convLiters" inputmode="decimal" placeholder="自动换算" min="0">
+        </div>
+      </div>
+      <div class="hint" id="convHint"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="tick"></span>行程路段</div>
+      <div class="route-row">
+        <button class="route-picker" id="routePickerBtn" onclick="openRouteSheet()">
+          <span id="routePickerLabel" class="ph">选择常用路线…</span><span class="chev"></span>
+        </button>
+        <button class="btn-mini primary" onclick="loadRoute()">载入</button>
+      </div>
+      <div class="route-row" style="margin-bottom:8px">
+        <button class="btn-mini" onclick="saveRoute()">存为常用路线</button>
+        <button class="btn-mini danger" onclick="delRoute()">删除所选路线</button>
+      </div>
+      <div class="route-row">
+        <button class="btn-mini primary" style="flex:1" onclick="planAllSegments()">一键规划全部路段</button>
+        <button class="btn-mini" onclick="openAmapKeySheet()">地图 Key</button>
+      </div>
+      <div class="hint" id="amapKeyHint"></div>
+      <div id="segments" style="margin-top:10px"></div>
+      <button class="btn-add" onclick="addSegment()">＋ 添加一段行程</button>
+      <div class="toggle-row">
+        <span>往返（费用 ×2）</span>
+        <label class="switch" style="margin:0">
+          <input type="checkbox" id="roundTrip" onchange="calc()">
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <div class="hero">
+      <div class="label">预计总费用</div>
+      <div class="amount" id="totalCost">¥ 0.00</div>
+      <div class="per-km" id="perKm">每公里 ¥ 0.00</div>
+    </div>
+
+    <div class="rc" id="rangeCheck" style="display:none"></div>
+
+    <div class="result-grid">
+      <div class="result-item">
+        <div class="k">总里程</div>
+        <div class="v" id="totalDist">0 <small>km</small></div>
+      </div>
+      <div class="result-item">
+        <div class="k">耗油量</div>
+        <div class="v fuel" id="totalFuel">0 <small>L</small></div>
+      </div>
+      <div class="result-item">
+        <div class="k">油费</div>
+        <div class="v fuel" id="fuelCost">¥ 0.00</div>
+      </div>
+      <div class="result-item">
+        <div class="k">过路费</div>
+        <div class="v toll" id="tollCost">¥ 0.00</div>
+      </div>
+    </div>
+
+    <div class="card range-card" onclick="switchTab('tank')">
+      <div class="card-title"><span class="tick"></span>当前油箱续航</div>
+      <div id="rangeSummary"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ==================== 页面2：油耗记录 ==================== -->
+<div class="page" id="page-log">
+  <div class="container">
+
+    <div class="card">
+      <div class="card-title"><span class="tick"></span>记一次加油</div>
+      <div class="hint" style="margin-bottom:12px">加满油法：加油时记下当前里程并加满，下次加油再记一次，即可算出真实油耗。<br><b>金额和升数填一个就行</b>，另一个按当前油价自动算出。</div>
+      <div class="row">
+        <div class="field">
+          <label>当前里程表读数 (km)</label>
+          <input type="number" id="logOdo" inputmode="decimal" placeholder="如 32580" min="0">
+        </div>
+        <div class="field">
+          <label>本次加油量 (L)</label>
+          <input type="number" id="logFuel" inputmode="decimal" placeholder="如 42.5" step="0.01" min="0">
+        </div>
+        <div class="field">
+          <label>加油金额 (¥)</label>
+          <input type="number" id="logCost" inputmode="decimal" placeholder="如 200" step="0.01" min="0">
+        </div>
+      </div>
+      <button class="btn-primary" onclick="addRecord()">保存记录</button>
+      <button class="btn-ghost" onclick="clearRecords()">清空全部记录</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="tick"></span>油耗趋势</div>
+      <div id="trendChart"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="tick"></span>月度油费统计</div>
+      <div id="monthStats"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="tick"></span>历史记录</div>
+      <div id="recordList"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="tick"></span>数据备份 / 恢复</div>
+      <div class="row" style="margin-bottom:10px">
+        <button class="btn-primary" onclick="exportData()">导出备份</button>
+        <button class="btn-primary" style="background:var(--green)" onclick="importData()">导入恢复</button>
+      </div>
+      <div class="field">
+        <textarea id="backupBox" rows="4" placeholder="点「导出备份」生成备份文本并自动复制；换手机后粘贴到这里，点「导入恢复」"></textarea>
+      </div>
+      <div class="hint">数据只存在本机。换手机：旧机导出，通过微信或备忘录发到新机，粘贴导入即可完整迁移（兼容旧版备份）。</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ==================== 页面3：油箱续航 ==================== -->
+<div class="page" id="page-tank">
+  <div class="container">
+
+    <div class="card">
+      <div class="card-title"><span class="tick"></span>油箱设置</div>
+      <div class="row">
+        <div class="field">
+          <label>油箱容量 (L)</label>
+          <input type="number" id="tankCap" inputmode="decimal" placeholder="如 50" min="0">
+        </div>
+        <div class="field">
+          <label>市区油耗 (L/100km)</label>
+          <input type="number" id="cityCons" inputmode="decimal" placeholder="如 9.5" step="0.1" min="0">
+        </div>
+        <div class="field">
+          <label>高速油耗 (L/100km)</label>
+          <input type="number" id="hwyCons" inputmode="decimal" placeholder="如 6.5" step="0.1" min="0">
+        </div>
+      </div>
+      <div class="hint">油耗留空则自动使用「行程计算」页保存的综合油耗。</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="tick"></span>剩余油量</div>
+      <div class="seg-ctrl">
+        <button id="modeBtnGauge" onclick="setFuelMode('gauge')">油表刻度</button>
+        <button id="modeBtnPercent" onclick="setFuelMode('percent')">百分比</button>
+        <button id="modeBtnLiters" onclick="setFuelMode('liters')">升数</button>
+      </div>
+
+      <div id="modeGauge">
+        <div class="gauge-btns">
+          <button data-f="1" onclick="setGauge(1)">满格</button>
+          <button data-f="0.75" onclick="setGauge(0.75)">3/4</button>
+          <button data-f="0.5" onclick="setGauge(0.5)">1/2</button>
+          <button data-f="0.25" onclick="setGauge(0.25)">1/4</button>
+          <button data-f="0.08" onclick="setGauge(0.08)">见底</button>
+        </div>
+      </div>
+      <div id="modePercent" style="display:none">
+        <div class="field">
+          <label>油箱剩余百分比 (%)</label>
+          <input type="number" id="pctInput" inputmode="decimal" placeholder="如 35" min="0" max="100">
+        </div>
+      </div>
+      <div id="modeLiters" style="display:none">
+        <div class="field">
+          <label>剩余油量 (L)</label>
+          <input type="number" id="litersInput" inputmode="decimal" placeholder="如 18" step="0.1" min="0">
+        </div>
+      </div>
+
+      <div class="tank-now" id="tankNow">剩余 0 L</div>
+    </div>
+
+    <div class="warn-banner" id="tankWarn" style="display:none">
+      <svg class="ic"><use href="#i-alert"/></svg><span>续航不足 50 km，请尽快加油</span>
+    </div>
+
+    <div class="result-grid">
+      <div class="result-item">
+        <div class="k"><svg class="ic"><use href="#i-city"/></svg>市区续航</div>
+        <div class="v" id="cityRange">--</div>
+      </div>
+      <div class="result-item">
+        <div class="k"><svg class="ic"><use href="#i-road"/></svg>高速续航</div>
+        <div class="v" id="hwyRange">--</div>
+      </div>
+    </div>
+
+    <div class="result-item" style="margin-top:10px">
+      <div class="k"><svg class="ic"><use href="#i-wallet"/></svg>现在去加满一箱油</div>
+      <div class="v" id="fillCost" style="color:var(--amber)">--</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ==================== 页面4：车辆成本 ==================== -->
+<div class="page" id="page-cost">
+  <div class="container">
+
+    <div class="card">
+      <div class="card-title"><span class="tick"></span>本月用车成本</div>
+      <div id="costSummary"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="tick"></span>记一笔费用</div>
+      <div class="row">
+        <div class="field">
+          <label>金额 (¥)</label>
+          <input type="number" id="costAmount" inputmode="decimal" placeholder="如 200" step="0.01" min="0">
+        </div>
+        <div class="field">
+          <label>类别</label>
+          <select id="costType">
+            <option>加油</option><option>高速</option><option>停车</option>
+            <option>保养</option><option>维修</option><option>洗车</option>
+            <option>保险</option><option>其他</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>备注（可选）</label>
+        <input type="text" id="costNote" placeholder="如：换机油">
+      </div>
+      <button class="btn-primary" onclick="addCostRecord()">保存费用</button>
+      <div class="hint">费用按当前车辆分别记录；加油费用建议用「油耗记录」页记（能算油耗），两边数据独立。</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="tick"></span>费用记录</div>
+      <div id="costList"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ==================== 页面5：智能管家 ==================== -->
+<div class="page" id="page-smart">
+  <div class="container">
+
+    <div class="card">
+      <div class="card-title"><span class="tick"></span>车辆概览</div>
+      <div class="result-grid" id="smartDash"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="tick"></span>AI 驾驶报告</div>
+      <div id="driveAnalysis"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="tick"></span>保养提醒</div>
+      <div class="row">
+        <div class="field">
+          <label>上次保养时里程 (km)</label>
+          <input type="number" id="maintLastOdo" inputmode="decimal" placeholder="如 30000" min="0">
+        </div>
+        <div class="field">
+          <label>保养周期 (km)</label>
+          <input type="number" id="maintInterval" inputmode="decimal" placeholder="如 5000" min="0">
+        </div>
+      </div>
+      <div id="maintResult"></div>
+      <div class="hint">根据「油耗记录」里的最新里程表读数，自动计算距下次保养还剩多少公里。</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ==================== 底部导航 ==================== -->
+<div class="tabbar">
+  <div class="tab active" id="tab-calc" onclick="switchTab('calc')">
+    <svg class="ic ic-lg"><use href="#i-calc"/></svg>行程计算
+  </div>
+  <div class="tab" id="tab-tank" onclick="switchTab('tank')">
+    <svg class="ic ic-lg"><use href="#i-fuel"/></svg>油箱续航
+  </div>
+  <div class="tab" id="tab-log" onclick="switchTab('log')">
+    <svg class="ic ic-lg"><use href="#i-chart"/></svg>油耗记录
+  </div>
+  <div class="tab" id="tab-cost" onclick="switchTab('cost')">
+    <svg class="ic ic-lg"><use href="#i-wallet"/></svg>车辆成本
+  </div>
+  <div class="tab" id="tab-smart" onclick="switchTab('smart')">
+    <svg class="ic ic-lg"><use href="#i-pin"/></svg>智能管家
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- ==================== 底部弹出选择器 ==================== -->
+<div class="sheet-mask" id="sheetMask" onclick="closeSheet()"></div>
+<div class="sheet" id="sheet">
+  <div class="sheet-grip"></div>
+  <div class="sheet-title" id="sheetTitle"></div>
+  <div id="sheetList"></div>
+</div>
+
+<script>
+/* ================= 本地存储（多车辆结构） ================= */
+const LS_KEY = 'driveCostCalc_v1';
+
+/* 今日油价表（由每日自动化更新；date 为价格日期） */
+const DAILY_PRICE = { date: '2026-09-21', province: '安徽', '92': 8.24, '95': 8.81, '98': 10.31, '0': 8.01 };
+
+function dailyPrice(v) {
+  const p = DAILY_PRICE[(v && v.fuelType) || '92'];
+  return (typeof p === 'number' && p > 0) ? p : 0;
+}
+/* 生效油价：手动填写优先，否则用今日油价 */
+function effPrice(v) {
+  const m = num(v.fuelPrice);
+  return m > 0 ? m : dailyPrice(v);
+}
+/* 高德「Web服务」Key 由用户免费申请后填入，仅保存在本机 localStorage；
+   路线规划直连 restapi.amap.com（官方接口允许浏览器跨域调用）。
+   注意：服务平台必须选「Web服务」，选「Web端 / JS API」的 Key 会报 10009。 */
+function amapKey() { return (state.amapKey || '').trim(); }
+
+const VEHICLE_FIELDS = ['consumption','fuelType','fuelPrice','tankCapacity','cityCons','hwyCons','remainLiters','fuelMode','records','costs','maint'];
+
+let state = {
+  activeVehicle: '',
+  vehicles: [],     // {id,name,consumption,fuelType,fuelPrice,tankCapacity,cityCons,hwyCons,remainLiters,fuelMode,records[],costs[],maint{}}
+  segments: [{ dist: '', toll: '' }],
+  routes: [],       // {name, dist, toll}
+  amapKey: ''       // 用户自己的高德 Web 服务 Key（仅存本机）
+};
+
+function newVehicle(name) {
+  return {
+    id: 'v' + Date.now() + Math.floor(Math.random() * 1000),
+    name: name || '我的车',
+    consumption: '', fuelType: '92', fuelPrice: '',
+    tankCapacity: '', cityCons: '', hwyCons: '',
+    remainLiters: '', fuelMode: 'gauge', records: [],
+    costs: [], maint: { lastOdo: '', interval: '' }
+  };
+}
+
+/* 当前车辆 */
+function V() {
+  return state.vehicles.find(v => v.id === state.activeVehicle) || state.vehicles[0];
+}
+
+function save() { localStorage.setItem(LS_KEY, JSON.stringify(state)); }
+
+function load() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) {
+      const s = JSON.parse(raw);
+      if (Array.isArray(s.vehicles)) {
+        // 已是多车辆结构
+        state = Object.assign(state, s);
+        if (!state.vehicles.length) state.vehicles = [newVehicle('我的车')];
+        if (!state.activeVehicle) state.activeVehicle = state.vehicles[0].id;
+      } else {
+        // v1 旧数据迁移：把扁平字段包成第一辆车
+        const v = newVehicle('我的车');
+        VEHICLE_FIELDS.forEach(k => { if (s[k] !== undefined) v[k] = s[k]; });
+        state.vehicles = [v];
+        state.activeVehicle = v.id;
+        state.segments = (s.segments && s.segments.length) ? s.segments : [{ dist: '', toll: '' }];
+      }
+    }
+  } catch (e) {}
+  if (!state.vehicles.length) {
+    state.vehicles = [newVehicle('我的车')];
+    state.activeVehicle = state.vehicles[0].id;
+  }
+  if (!state.segments || !state.segments.length) state.segments = [{ dist: '', toll: '' }];
+  if (!Array.isArray(state.routes)) state.routes = [];
+  if (typeof state.amapKey !== 'string') state.amapKey = '';
+  // 老数据补新字段
+  state.vehicles.forEach(v => {
+    if (!Array.isArray(v.costs)) v.costs = [];
+    if (!v.maint || typeof v.maint !== 'object') v.maint = { lastOdo: '', interval: '' };
+    if (!Array.isArray(v.records)) v.records = [];
+  });
+}
+
+/* ================= 工具 ================= */
+const $ = id => document.getElementById(id);
+const num = v => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
+const fmt = (n, d=2) => n.toFixed(d);
+const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const icon = (name) => '<svg class="ic"><use href="#i-' + name + '"/></svg>';
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+/* ================= 底部弹出选择器（通用） ================= */
+let _sheetPick = null;
+function openSheet(title, items, emptyHtml, onPick) {
+  $('sheetTitle').textContent = title;
+  const list = $('sheetList');
+  if (!items.length) {
+    list.innerHTML = emptyHtml || '<div class="sheet-empty">暂无可选项</div>';
+  } else {
+    list.innerHTML = items.map((it, i) => `
+      <div class="sheet-opt ${it.active ? 'on' : ''}" onclick="pickSheet(${i})">
+        <span>${it.label}${it.sub ? `<span class="sub">${it.sub}</span>` : ''}</span>
+        <svg class="ic check"><use href="#i-check"/></svg>
+      </div>`).join('');
+  }
+  _sheetPick = { items, onPick };
+  $('sheetMask').classList.add('show');
+  $('sheet').classList.add('show');
+}
+function pickSheet(i) {
+  const p = _sheetPick;
+  closeSheet();
+  if (p && p.onPick) p.onPick(p.items[i]);
+}
+
+/* 文字输入版弹出层（iOS 主屏幕 App 禁用 prompt()，用它替代） */
+let _inputCb = null;
+function openInputSheet(title, placeholder, defValue, btnText, cb) {
+  $('sheetTitle').textContent = title;
+  $('sheetList').innerHTML = `
+    <div style="padding:4px 2px 8px">
+      <input type="text" id="sheetInput" placeholder="${esc(placeholder)}" value="${esc(defValue)}"
+             autocomplete="off" enterkeyhint="done" onkeydown="if(event.key==='Enter')submitInputSheet()">
+      <button class="btn-primary" style="margin-top:10px" onclick="submitInputSheet()">${esc(btnText || '保存')}</button>
+    </div>`;
+  _inputCb = cb;
+  $('sheetMask').classList.add('show');
+  $('sheet').classList.add('show');
+  // iOS 要求在用户手势链路内聚焦才能唤起键盘，立即聚焦 + 延时兜底
+  const el = $('sheetInput');
+  if (el) el.focus();
+  setTimeout(() => { const el2 = $('sheetInput'); if (el2 && document.activeElement !== el2) el2.focus(); }, 400);
+}
+function submitInputSheet() {
+  const el = $('sheetInput');
+  const v = el ? el.value : '';
+  const cb = _inputCb;
+  closeSheet();
+  if (cb) cb(v);
+}
+
+function closeSheet() {
+  $('sheetMask').classList.remove('show');
+  const sheet = $('sheet');
+  sheet.classList.remove('show');
+  sheet.style.transform = '';   // 清掉键盘避让的内联位移，保证下次打开位置正确
+  _sheetPick = null;
+  _inputCb = null;
+}
+
+/* iOS 键盘弹出时上移底部面板，避免输入框被键盘遮挡 */
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', () => {
+    const sheet = $('sheet');
+    if (!sheet) return;
+    const offset = Math.max(0, window.innerHeight - window.visualViewport.height - window.visualViewport.offsetTop);
+    if (sheet.classList.contains('show') && offset > 0) {
+      sheet.style.transform = 'translateY(' + (-offset) + 'px)';
+    } else if (sheet.classList.contains('show')) {
+      sheet.style.transform = '';
+    }
+  });
+}
+
+/* ================= Tab 切换 ================= */
+function switchTab(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  $('page-' + name).classList.add('active');
+  $('tab-' + name).classList.add('active');
+  if (name === 'log') renderRecords();
+  if (name === 'tank') updateTank();
+  if (name === 'cost') renderCost();
+  if (name === 'smart') renderSmart();
+}
+
+/* ================= 多车辆 ================= */
+function renderVehicleBar() {
+  $('vehPickerLabel').textContent = V().name;
+  $('vehDelBtn').style.visibility = state.vehicles.length > 1 ? 'visible' : 'hidden';
+}
+
+function openVehicleSheet() {
+  openSheet('切换车辆', state.vehicles.map(v => ({
+    label: esc(v.name), id: v.id, active: v.id === state.activeVehicle
+  })), '', it => switchVehicle(it.id));
+}
+
+function switchVehicle(id) {
+  if (id === state.activeVehicle) return;
+  state.activeVehicle = id;
+  save();
+  refreshAll();
+}
+
+function addVehicleUI() {
+  openInputSheet('添加车辆', '新车名称（如：家里的SUV）', '', '添加', name => {
+    if (!name || !name.trim()) return;
+    const v = newVehicle(name.trim());
+    state.vehicles.push(v);
+    state.activeVehicle = v.id;
+    save();
+    refreshAll();
+    toast('已添加「' + v.name + '」，请设置它的油耗等信息');
+  });
+}
+
+function renameVehicle() {
+  const v = V();
+  openInputSheet('重命名车辆', '车辆名称', v.name, '保存', name => {
+    if (!name || !name.trim()) return;
+    v.name = name.trim();
+    save();
+    renderVehicleBar();
+  });
+}
+
+function delVehicle() {
+  if (state.vehicles.length <= 1) { toast('至少保留一辆车'); return; }
+  const v = V();
+  if (!confirm('删除「' + v.name + '」？该车的油耗记录、油箱数据将一并删除')) return;
+  state.vehicles = state.vehicles.filter(x => x.id !== v.id);
+  state.activeVehicle = state.vehicles[0].id;
+  save();
+  refreshAll();
+}
+
+/* 车辆切换后全量刷新界面 */
+function refreshAll() {
+  renderVehicleBar();
+  bindVehicleValues();
+  bindTankValues();
+  renderFuelMode();
+  renderSegments();
+  renderRoutes();
+  renderRecords();
+  calc();
+  updateTank();
+}
+
+/* ================= 行程段 ================= */
+function renderSegments() {
+  const box = $('segments');
+  box.innerHTML = '';
+  state.segments.forEach((seg, i) => {
+    const div = document.createElement('div');
+    div.className = 'segment';
+    div.id = 'seg-card-' + i;
+    div.innerHTML = `
+      <div class="segment-head">
+        <b>第 ${i + 1} 段</b>
+        ${state.segments.length > 1 ? `<button class="del-seg" onclick="delSegment(${i})">删除</button>` : ''}
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>出发地</label>
+          <input type="text" id="seg-from-${i}" placeholder="如 合肥" value="${esc(seg.from || '')}"
+                 autocomplete="off" oninput="onSegEndpointInput(${i})" onblur="onSegEndpointBlur(${i})">
+        </div>
+        <div class="field">
+          <label>目的地</label>
+          <input type="text" id="seg-to-${i}" placeholder="如 南京" value="${esc(seg.to || '')}"
+                 autocomplete="off" oninput="onSegEndpointInput(${i})" onblur="onSegEndpointBlur(${i})">
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>里程 (km)</label>
+          <input type="number" id="seg-dist-${i}" inputmode="decimal" placeholder="自动获取，也可手填" min="0" value="${seg.dist}"
+                 oninput="updateSegment(${i}, 'dist', this.value)">
+        </div>
+        <div class="field">
+          <label>过路费 (¥)</label>
+          <input type="number" id="seg-toll-${i}" inputmode="decimal" placeholder="自动获取，也可手填" min="0" value="${seg.toll}"
+                 oninput="updateSegment(${i}, 'toll', this.value)">
+        </div>
+      </div>
+      <div class="seg-plan-row">
+        <button type="button" class="btn-plan" id="seg-btn-${i}" onclick="planSegment(${i})"></button>
+      </div>
+      <div id="seg-msg-${i}">${segPlanMsg(i, seg)}</div>`;
+    box.appendChild(div);
+  });
+  refreshPlanButtons();
+}
+
+/* 路段规划状态（segPlanUi 为瞬时提示，seg.plan 为最近一次成功结果） */
+let planBusy = false;      // 是否有规划请求在进行
+let planBatch = false;    // 是否处于「一键规划全部」批量中
+let planCurrent = -1;     // 正在规划的段下标
+let planBatchStat = null; // 批量成功 / 失败计数
+let segPlanUi = {};
+const planQueue = [];     // 等待规划的段任务 {i, auto}
+const segTimers = {};     // 各段防抖定时器
+
+function durText(mins) {
+  mins = Math.max(0, Math.round(mins || 0));
+  const h = Math.floor(mins / 60), m = mins % 60;
+  return (h ? h + ' 小时 ' : '') + m + ' 分钟';
+}
+function segPlanMsg(i, seg) {
+  if (segPlanUi[i]) return `<div class="seg-plan-msg ${segPlanUi[i].type}">${segPlanUi[i].text}</div>`;
+  if (seg.plan) {
+    const p = seg.plan;
+    return `<div class="seg-plan-msg ok">高德实时规划：${fmt(p.km, 1)} km · 预计用时 ${durText(p.mins)} · 高速费 ${p.toll > 0 ? '¥' + fmt(p.toll) : '0 元（无收费路段）'}，已自动填入</div>`;
+  }
+  return '';
+}
+/* 该段起终点与最近一次成功规划是否一致（一致则无需重复请求） */
+function planDoneFor(i) {
+  const s = state.segments[i];
+  return !!(s && s.plan && s.plan.from === (s.from || '').trim() && s.plan.to === (s.to || '').trim());
+}
+
+/* 出发地 / 目的地输入：即时保存，停笔 900ms 后自动规划 */
+function onSegEndpointInput(i) {
+  const seg = state.segments[i];
+  if (!seg) return;
+  seg.from = $('seg-from-' + i).value;
+  seg.to = $('seg-to-' + i).value;
+  delete seg.plan;
+  delete segPlanUi[i];
+  patchSegMsg(i);
+  save(); calc();
+  clearTimeout(segTimers[i]);
+  const from = (seg.from || '').trim(), to = (seg.to || '').trim();
+  if (from && to) {
+    if (amapKey()) {
+      // 有 Key：停笔自动规划
+      segTimers[i] = setTimeout(() => {
+        segTimers[i] = null;
+        enqueuePlan(i, true);
+      }, 900);
+    } else {
+      // 无 Key：原地提示，不弹窗打断输入
+      setSegMsg(i, 'err', '自动获取里程 / 过路费需免费的高德「Web服务」Key：<button class="link-btn" onclick="openAmapKeySheet()">点此设置（约 1 分钟）</button>');
+    }
+  } else {
+    refreshPlanButtons();
+  }
+}
+/* 输入框失焦：若起终点已填齐则立即规划，不必等防抖结束 */
+function onSegEndpointBlur(i) {
+  const seg = state.segments[i];
+  if (!seg) return;
+  if (segTimers[i]) {
+    clearTimeout(segTimers[i]);
+    segTimers[i] = null;
+    const from = (seg.from || '').trim(), to = (seg.to || '').trim();
+    if (from && to && amapKey() && !planDoneFor(i)) enqueuePlan(i, true);
+  }
+}
+
+/* 局部刷新（只动该段 DOM，避免全量重绘导致输入失焦） */
+function setSegMsg(i, type, text) {
+  if (type) segPlanUi[i] = { type: type, text: text };
+  else delete segPlanUi[i];
+  patchSegMsg(i);
+}
+function patchSegMsg(i) {
+  const el = $('seg-msg-' + i);
+  if (el) el.innerHTML = segPlanMsg(i, state.segments[i]);
+}
+function patchSegValues(i) {
+  const seg = state.segments[i];
+  if (!seg) return;
+  const d = $('seg-dist-' + i), t = $('seg-toll-' + i);
+  if (d && document.activeElement !== d) d.value = seg.dist;
+  if (t && document.activeElement !== t) t.value = seg.toll;
+}
+function refreshPlanButtons() {
+  state.segments.forEach((seg, i) => {
+    const b = $('seg-btn-' + i);
+    if (!b) return;
+    b.disabled = planBusy;
+    const from = (seg.from || '').trim(), to = (seg.to || '').trim();
+    let label;
+    if (planCurrent === i) label = '正在规划，请稍候…';
+    else if (planBusy && planQueue.some(q => q.i === i)) label = '排队等待中…';
+    else if (from && to && planDoneFor(i)) label = '重新规划本段';
+    else if (from && to) label = '立即规划本段';
+    else label = '填好出发地和目的地后自动规划';
+    b.textContent = label;
+  });
+}
+
+/* 规划任务队列：多段自动 / 手动请求统一串行执行，避免触发高德频率限制 */
+function enqueuePlan(i, auto) {
+  const seg = state.segments[i];
+  if (!seg) return;
+  const from = (seg.from || '').trim(), to = (seg.to || '').trim();
+  if (!from || !to || planDoneFor(i)) return;
+  const ex = planQueue.findIndex(q => q.i === i);
+  if (ex >= 0) planQueue.splice(ex, 1);   // 同段只保留最新任务
+  planQueue.push({ i: i, auto: auto });
+  drainPlanQueue();
+}
+async function drainPlanQueue() {
+  if (planBusy) return;
+  planBusy = true;
+  refreshPlanButtons();
+  while (planQueue.length) {
+    const job = planQueue.shift();
+    if (!state.segments[job.i] || planDoneFor(job.i)) continue;
+    planCurrent = job.i;
+    refreshPlanButtons();
+    const ok = await runPlan(job.i, job.auto);
+    if (planBatchStat) { ok ? planBatchStat.ok++ : planBatchStat.fail++; }
+  }
+  planCurrent = -1;
+  planBusy = false;
+  refreshPlanButtons();
+  if (planBatch) {
+    planBatch = false;
+    const st = planBatchStat; planBatchStat = null;
+    if (st) toast(st.fail ? ('规划完成：成功 ' + st.ok + ' 段，失败 ' + st.fail + ' 段') : ('全部 ' + st.ok + ' 段规划完成'));
+  }
+}
+
+/* 单段规划：地理编码 → 驾车规划 → 原地回填里程 / 过路费；返回是否成功 */
+async function runPlan(i, auto) {
+  const seg = state.segments[i];
+  if (!seg) return false;
+  const from = (seg.from || '').trim();
+  const to = (seg.to || '').trim();
+  if (!from || !to) {
+    if (!auto) setSegMsg(i, 'err', '请先填写本段的出发地和目的地');
+    return false;
+  }
+  if (!amapKey()) {
+    setSegMsg(i, 'err', '自动获取里程 / 过路费需免费的高德「Web服务」Key：<button class="link-btn" onclick="openAmapKeySheet()">点此设置（约 1 分钟）</button>');
+    if (!auto) openAmapKeySheet();
+    return false;
+  }
+  setSegMsg(i, 'info', '正在用高德实时规划「' + esc(from) + ' → ' + esc(to) + '」…');
+  try {
+    const key = amapKey();
+    const origin = await amapGeocode(from, key);
+    const destination = await amapGeocode(to, key);
+    const r = await amapDriving(origin, destination, key);
+    const cur = state.segments[i];
+    if (!cur) return false;
+    /* 请求期间用户又改了起终点，则丢弃这次过期结果 */
+    if ((cur.from || '').trim() !== from || (cur.to || '').trim() !== to) return false;
+    cur.dist = String(r.km);
+    cur.toll = String(r.toll);
+    cur.plan = { km: r.km, mins: r.mins, toll: r.toll, from: from, to: to };
+    delete segPlanUi[i];
+    save();
+    patchSegValues(i);
+    patchSegMsg(i);
+    calc();
+    if (!auto) toast('已填入 ' + r.km + ' km，过路费 ¥' + fmt(r.toll));
+    return true;
+  } catch (e) {
+    const msg = String(e.message || e);
+    const needKey = /10009|10001|10002|平台|Key/i.test(msg);
+    const action = needKey
+      ? '<button class="link-btn" onclick="openAmapKeySheet()">检查 / 更换 Key</button>'
+      : '<button class="link-btn" onclick="planSegment(' + i + ')">重试</button>';
+    setSegMsg(i, 'err', '规划失败：' + esc(msg) + '　' + action);
+    return false;
+  }
+}
+
+/* 手动规划本段（按钮） */
+function planSegment(i) {
+  const seg = state.segments[i];
+  if (!seg) return;
+  if (planBusy) { toast('正在规划中，请稍候'); return; }
+  if (segTimers[i]) { clearTimeout(segTimers[i]); segTimers[i] = null; }
+  const f = $('seg-from-' + i), t = $('seg-to-' + i);
+  if (f) seg.from = f.value;
+  if (t) seg.to = t.value;
+  enqueuePlan(i, false);
+}
+
+/* 顺序规划所有填了起终点且结果过期的路段 */
+function planAllSegments() {
+  if (planBusy || planBatch) { toast('正在规划中，请稍候'); return; }
+  const idxs = state.segments
+    .map((s, i) => i)
+    .filter(i => {
+      const s = state.segments[i];
+      return (s.from || '').trim() && (s.to || '').trim() && !planDoneFor(i);
+    });
+  if (!idxs.length) {
+    const anyFilled = state.segments.some(s => (s.from || '').trim() && (s.to || '').trim());
+    toast(anyFilled ? '所有路段都已是最新规划结果' : '请先在各路段填写出发地和目的地');
+  } else if (!amapKey()) {
+    toast('请先设置高德地图 Key');
+    openAmapKeySheet();
+  } else {
+    planBatch = true;
+    planBatchStat = { ok: 0, fail: 0 };
+    idxs.forEach(i => enqueuePlan(i, false));
+  }
+}
+
+function addSegment() {
+  state.segments.push({ dist: '', toll: '', from: '', to: '' });
+  save(); renderSegments(); calc();
+}
+function delSegment(i) {
+  clearTimeout(segTimers[i]);
+  state.segments.splice(i, 1);
+  /* 删除后段索引整体前移，清掉全部防抖定时器与排队任务，防止错位 */
+  Object.keys(segTimers).forEach(k => { clearTimeout(segTimers[k]); segTimers[k] = null; });
+  for (let k = planQueue.length - 1; k >= 0; k--) if (planQueue[k].i >= i) planQueue.splice(k, 1);
+  segPlanUi = {};
+  save(); renderSegments(); calc();
+}
+function updateSegment(i, key, val) {
+  const seg = state.segments[i];
+  if (!seg) return;
+  seg[key] = val;
+  if (key === 'dist' || key === 'toll') {
+    /* 手动改动里程 / 过路费后，上一次规划结果作废，避免展示与输入不一致 */
+    delete seg.plan;
+    delete segPlanUi[i];
+    patchSegMsg(i);
+    refreshPlanButtons();
+  }
+  save(); calc();
+}
+
+/* ================= 常用路线 ================= */
+let selRoute = -1;   // 当前选中的路线下标，-1 = 未选
+
+function renderRoutes() {
+  const label = $('routePickerLabel');
+  if (selRoute >= 0 && selRoute < state.routes.length) {
+    label.textContent = state.routes[selRoute].name;
+    label.classList.remove('ph');
+  } else {
+    selRoute = -1;
+    label.textContent = state.routes.length ? '选择常用路线…' : '暂无路线，先「存为常用路线」';
+    label.classList.add('ph');
+  }
+}
+
+function openRouteSheet() {
+  openSheet('选择常用路线', state.routes.map((r, i) => ({
+    label: esc(r.name), sub: `${r.dist} km · 过路费 ¥${r.toll}`, idx: i, active: i === selRoute
+  })), '<div class="sheet-empty">还没有常用路线<br>填好行程后点「存为常用路线」即可保存</div>',
+  it => { selRoute = it.idx; renderRoutes(); });
+}
+
+function saveRoute() {
+  let dist = 0, toll = 0;
+  state.segments.forEach(s => { dist += Math.max(0, num(s.dist)); toll += Math.max(0, num(s.toll)); });
+  if (dist <= 0) { toast('请先填写行程里程'); return; }
+  const from = (state.segments[0].from || '').trim();
+  const to = (state.segments[state.segments.length - 1].to || '').trim();
+  const defName = (from && to) ? from + ' → ' + to : '';
+  openInputSheet('存为常用路线', '路线名称', defName, '保存路线', name => {
+    if (!name || !name.trim()) return;
+    state.routes.push({ name: name.trim(), dist: +dist.toFixed(1), toll: +toll.toFixed(2), from: from, to: to });
+    selRoute = state.routes.length - 1;
+    save();
+    renderRoutes();
+    toast('路线已保存');
+  });
+}
+
+function loadRoute() {
+  if (selRoute < 0 || !state.routes[selRoute]) { toast('先点左侧选择一条路线'); return; }
+  const r = state.routes[selRoute];
+  state.segments = [{ dist: String(r.dist), toll: String(r.toll), from: r.from || '', to: r.to || '' }];
+  save();
+  renderSegments();
+  calc();
+  toast('已载入「' + r.name + '」');
+}
+
+function delRoute() {
+  if (selRoute < 0 || !state.routes[selRoute]) { toast('先选择要删除的路线'); return; }
+  const r = state.routes[selRoute];
+  if (!confirm('删除路线「' + r.name + '」？')) return;
+  state.routes.splice(selRoute, 1);
+  selRoute = -1;
+  save();
+  renderRoutes();
+  toast('已删除');
+}
+
+/* ================= 主计算 ================= */
+function calc() {
+  const cons = Math.max(0, num($('consumption').value));
+  const price = effPrice(V());
+  const round = $('roundTrip').checked ? 2 : 1;
+
+  let dist = 0, toll = 0;
+  state.segments.forEach(s => { dist += Math.max(0, num(s.dist)); toll += Math.max(0, num(s.toll)); });
+  dist *= round; toll *= round;
+
+  const fuel = dist * cons / 100;
+  const fuelCost = fuel * price;
+  const total = fuelCost + toll;
+  const perKm = dist > 0 ? total / dist : 0;
+
+  $('totalDist').innerHTML = fmt(dist, dist % 1 ? 1 : 0) + ' <small>km</small>';
+  $('totalFuel').innerHTML = fmt(fuel, 1) + ' <small>L</small>';
+  $('fuelCost').textContent = '¥ ' + fmt(fuelCost);
+  $('tollCost').textContent = '¥ ' + fmt(toll);
+  $('totalCost').textContent = '¥ ' + fmt(total);
+  $('perKm').innerHTML = '每公里 <b>¥ ' + fmt(perKm) + '</b>';
+
+  updateRangeSummary();
+  updateRangeCheck(dist);
+  renderPriceHint();
+}
+
+/* 续航够不够用:行程里程 vs 当前油箱续航 */
+function updateRangeCheck(dist) {
+  const el = $('rangeCheck');
+  const v = V();
+  const cap = Math.max(0, num(v.tankCapacity));
+  const remain = Math.max(0, num(v.remainLiters));
+  const cc = effCons(v.cityCons);
+  const hc = effCons(v.hwyCons);
+  if (!(dist > 0 && cap > 0 && v.remainLiters !== '' && (cc > 0 || hc > 0))) {
+    el.style.display = 'none';
+    return;
+  }
+  const cityR = cc > 0 ? remain / cc * 100 : 0;
+  const hwyR = hc > 0 ? remain / hc * 100 : 0;
+  const maxR = Math.max(cityR, hwyR);
+  const d = fmt(dist, 0);
+  if (dist > maxR) {
+    el.className = 'rc rc-danger';
+    el.innerHTML = icon('alert') + '<span>续航不足：本次行程约 ' + d + ' km，超出当前最佳续航 ' + fmt(maxR, 0) + ' km，中途至少需要加油一次</span>';
+  } else if (cc > 0 && hc > 0 && dist > cityR) {
+    el.className = 'rc rc-warn';
+    el.innerHTML = icon('alert') + '<span>市区续航仅 ' + fmt(cityR, 0) + ' km，这趟 ' + d + ' km 需全程高速（' + fmt(hwyR, 0) + ' km）才够，建议出发前先加油</span>';
+  } else {
+    el.className = 'rc rc-ok';
+    el.innerHTML = icon('check') + '<span>续航充足：当前油量可轻松覆盖本次 ' + d + ' km 行程</span>';
+  }
+  el.style.display = '';
+}
+
+/* ================= 车辆设置绑定 ================= */
+function bindVehicle() {
+  $('consumption').addEventListener('input', e => { V().consumption = e.target.value; save(); calc(); });
+  $('fuelType').addEventListener('change', e => { V().fuelType = e.target.value; save(); bindVehicleValues(); calc(); });
+  $('fuelPrice').addEventListener('input', e => { V().fuelPrice = e.target.value; save(); calc(); });
+  bindVehicleValues();
+}
+function bindVehicleValues() {
+  const v = V();
+  $('consumption').value = v.consumption;
+  $('fuelType').value = v.fuelType;
+  $('fuelPrice').value = v.fuelPrice;
+  const dp = dailyPrice(v);
+  $('fuelPrice').placeholder = dp > 0 ? '留空用今日价 ' + fmt(dp) : '如 7.85';
+}
+
+/* 油价来源提示（车辆设置 / 加油记录 / 换算工具共用） */
+function renderPriceHint() {
+  const v = V();
+  const dp = dailyPrice(v);
+  const manual = Math.max(0, num(v.fuelPrice));
+  let src;
+  if (manual > 0) src = '按手动油价 ¥' + fmt(manual) + '/L 计算（清空油价可改回自动）';
+  else if (dp > 0) src = '按' + DAILY_PRICE.province + '今日油价 ¥' + fmt(dp) + '/L 自动计算（' + DAILY_PRICE.date + ' 更新）';
+  else src = '暂无油价数据，请手动填写油价';
+  if ($('priceHint')) $('priceHint').textContent = src;
+  if ($('convHint')) $('convHint').textContent = src + '，填一个另一个自动算出';
+}
+
+/* ================= 金额 ↔ 升数 双向换算 ================= */
+function linkPair(amountEl, litersEl) {
+  amountEl.addEventListener('input', () => {
+    const p = effPrice(V());
+    const a = Math.max(0, num(amountEl.value));
+    if (p > 0 && a > 0) litersEl.value = fmt(a / p, 2);
+  });
+  litersEl.addEventListener('input', () => {
+    const p = effPrice(V());
+    const l = Math.max(0, num(litersEl.value));
+    if (p > 0 && l > 0) amountEl.value = fmt(l * p);
+  });
+}
+function bindConverters() {
+  linkPair($('logCost'), $('logFuel'));
+  linkPair($('convCost'), $('convLiters'));
+}
+
+/* ================= 油耗记录 ================= */
+function addRecord() {
+  const v = V();
+  const odo = num($('logOdo').value);
+  let fuel = num($('logFuel').value);
+  let cost = num($('logCost').value);
+  // 双保险：只填了金额时按当前油价反算升数
+  const p = effPrice(v);
+  if (fuel <= 0 && cost > 0 && p > 0) fuel = cost / p;
+  if (odo <= 0 || fuel <= 0) { toast('请填写里程读数，以及金额或加油量'); return; }
+  if (v.records.length && odo <= v.records[v.records.length - 1].odo) {
+    toast('里程读数必须大于上次记录'); return;
+  }
+  // 金额留空时按当前油价自动估算
+  if (cost <= 0) cost = fuel * p;
+  v.records.push({
+    date: new Date().toLocaleDateString('zh-CN'),
+    odo: odo,
+    fuel: fuel,
+    cost: cost > 0 ? +cost.toFixed(2) : 0
+  });
+  save();
+  $('logOdo').value = '';
+  $('logFuel').value = '';
+  $('logCost').value = '';
+  renderRecords();
+  toast('已保存');
+}
+
+function delRecord(i) {
+  V().records.splice(i, 1);
+  save(); renderRecords();
+}
+
+function clearRecords() {
+  const v = V();
+  if (!v.records.length) { toast('暂无记录'); return; }
+  if (confirm('确定清空「' + v.name + '」的全部油耗记录？')) {
+    v.records = [];
+    save(); renderRecords();
+  }
+}
+
+function renderRecords() {
+  const box = $('recordList');
+  const recs = V().records;
+  renderTrend();
+  renderMonthStats();
+  if (!recs.length) {
+    box.innerHTML = '<div class="empty">暂无记录<br>加满油后来记第一笔吧</div>';
+    return;
+  }
+  let html = '';
+  // 最新在前
+  for (let i = recs.length - 1; i >= 0; i--) {
+    const r = recs[i];
+    const costText = r.cost > 0 ? ' · ¥' + fmt(r.cost) : '';
+    let badge, detail;
+    if (i > 0) {
+      const prev = recs[i - 1];
+      const km = r.odo - prev.odo;
+      const real = r.fuel / km * 100;
+      badge = `<span class="badge">${fmt(real, 1)} L/100km</span>`;
+      detail = `距上次 ${fmt(km, 0)} km · 加油 ${fmt(r.fuel, 1)} L${costText} · 里程表 ${fmt(r.odo, 0)} km
+        <br><a href="javascript:void(0)" onclick="applyConsumption(${real.toFixed(2)})">用这个油耗去算行程 →</a>`;
+    } else {
+      badge = '<span class="badge na">基准记录</span>';
+      detail = `加油 ${fmt(r.fuel, 1)} L${costText} · 里程表 ${fmt(r.odo, 0)} km<br>下次加油后即可算出实际油耗`;
+    }
+    html += `
+      <div class="record">
+        <div class="record-top">
+          <span class="date">${r.date}</span>
+          <span style="display:flex;align-items:center;gap:8px">
+            ${badge}
+            <button class="del-seg" onclick="delRecord(${i})">删除</button>
+          </span>
+        </div>
+        <div class="record-detail">${detail}</div>
+      </div>`;
+  }
+  box.innerHTML = html;
+}
+
+/* ================= 油耗趋势图 ================= */
+function renderTrend() {
+  const box = $('trendChart');
+  const recs = V().records;
+  const pts = [];
+  for (let i = 1; i < recs.length; i++) {
+    const km = recs[i].odo - recs[i - 1].odo;
+    if (km > 0) pts.push({ date: recs[i].date, v: recs[i].fuel / km * 100 });
+  }
+  if (pts.length < 2) {
+    box.innerHTML = '<div class="empty">再记 ' + (2 - pts.length) + ' 次加油<br>即可生成实测油耗趋势曲线</div>';
+    return;
+  }
+  const W = 320, H = 150, PL = 32, PR = 10, PT = 16, PB = 22;
+  const vs = pts.map(p => p.v);
+  let min = Math.min.apply(null, vs), max = Math.max.apply(null, vs);
+  if (max - min < 0.6) { min -= 0.3; max += 0.3; }
+  const x = i => PL + (W - PL - PR) * (i / (pts.length - 1));
+  const y = v => PT + (H - PT - PB) * (1 - (v - min) / (max - min));
+  const line = pts.map((p, i) => x(i).toFixed(1) + ',' + y(p.v).toFixed(1)).join(' ');
+  const last = pts[pts.length - 1];
+  const prev = pts[pts.length - 2];
+  const trendTxt = last.v > prev.v ? '▲ 较上次上升' : last.v < prev.v ? '▼ 较上次下降' : '＝ 与上次持平';
+  const trendColor = last.v > prev.v ? 'var(--red)' : last.v < prev.v ? 'var(--green)' : 'var(--ink-2)';
+  const dots = pts.map((p, i) =>
+    `<circle cx="${x(i)}" cy="${y(p.v)}" r="3.5" fill="#e8590c"/>` +
+    `<text x="${x(i)}" y="${y(p.v) - 7}" font-size="9" text-anchor="middle" fill="#787b82">${p.v.toFixed(1)}</text>`
+  ).join('');
+  box.innerHTML =
+    `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block">
+      <line x1="${PL}" y1="${y(max)}" x2="${W - PR}" y2="${y(max)}" stroke="#e6e6e1" stroke-dasharray="3 3"/>
+      <line x1="${PL}" y1="${y(min)}" x2="${W - PR}" y2="${y(min)}" stroke="#e6e6e1" stroke-dasharray="3 3"/>
+      <text x="2" y="${y(max) + 3}" font-size="9" fill="#a8abb2">${max.toFixed(1)}</text>
+      <text x="2" y="${y(min) + 3}" font-size="9" fill="#a8abb2">${min.toFixed(1)}</text>
+      <polyline points="${line}" fill="none" stroke="#e8590c" stroke-width="2" stroke-linejoin="round"/>
+      ${dots}
+      <text x="${PL}" y="${H - 6}" font-size="9" fill="#a8abb2">${pts[0].date}</text>
+      <text x="${W - PR}" y="${H - 6}" font-size="9" text-anchor="end" fill="#a8abb2">${last.date}</text>
+    </svg>
+    <div class="hint">最近实测 <b>${last.v.toFixed(1)} L/100km</b> · <span style="color:${trendColor};font-weight:600">${trendTxt}</span>　油耗持续升高通常是车况变化的信号</div>`;
+}
+
+/* ================= 月度油费统计 ================= */
+function renderMonthStats() {
+  const box = $('monthStats');
+  const months = {}; // key: "2026/9" -> {cost, fuel, count}
+  V().records.forEach(r => {
+    const parts = String(r.date).split('/');
+    if (parts.length < 2) return;
+    const key = parts[0] + '/' + parts[1];
+    if (!months[key]) months[key] = { cost: 0, fuel: 0, count: 0 };
+    months[key].cost += num(r.cost);
+    months[key].fuel += num(r.fuel);
+    months[key].count++;
+  });
+  const keys = Object.keys(months).sort((a, b) => {
+    const pa = a.split('/'), pb = b.split('/');
+    return (+pb[0]) - (+pa[0]) || (+pb[1]) - (+pa[1]);
+  });
+  if (!keys.length || keys.every(k => months[k].cost <= 0)) {
+    box.innerHTML = '<div class="empty">暂无金额数据<br>记加油时填金额（或按油价自动估算）后自动汇总</div>';
+    return;
+  }
+  const label = k => { const p = k.split('/'); return p[0] + '年' + (+p[1]) + '月'; };
+  box.innerHTML = keys.map(k => {
+    const m = months[k];
+    return `<div class="stat-line">
+      <span class="m">${label(k)}</span>
+      <span class="d">${m.count} 次 · ${fmt(m.fuel, 1)} L</span>
+      <b>¥ ${fmt(m.cost)}</b>
+    </div>`;
+  }).join('');
+}
+
+/* ================= 数据备份 / 恢复 ================= */
+function exportData() {
+  const text = JSON.stringify(state);
+  $('backupBox').value = text;
+  const done = () => toast('备份已生成并复制，发到微信/备忘录保存');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(() => {
+      $('backupBox').select();
+      toast('备份已生成，请手动复制');
+    });
+  } else {
+    $('backupBox').select();
+    toast('备份已生成，请手动复制');
+  }
+}
+
+function importData() {
+  const text = $('backupBox').value.trim();
+  if (!text) { toast('请先粘贴备份文本'); return; }
+  try {
+    const data = JSON.parse(text);
+    if (!data || typeof data !== 'object') { toast('备份文本格式不正确'); return; }
+    if (!confirm('导入将覆盖当前全部数据，确定继续？')) return;
+    if (Array.isArray(data.vehicles) && data.vehicles.length) {
+      // 多车辆格式备份
+      state = Object.assign({ activeVehicle: '', vehicles: [], segments: [{ dist: '', toll: '' }], routes: [] }, data);
+      if (!state.activeVehicle) state.activeVehicle = state.vehicles[0].id;
+      if (!state.segments || !state.segments.length) state.segments = [{ dist: '', toll: '' }];
+      if (!Array.isArray(state.routes)) state.routes = [];
+    } else if (Array.isArray(data.records)) {
+      // v1 旧版备份兼容
+      const v = newVehicle('我的车');
+      VEHICLE_FIELDS.forEach(k => { if (data[k] !== undefined) v[k] = data[k]; });
+      state = {
+        activeVehicle: v.id,
+        vehicles: [v],
+        segments: (data.segments && data.segments.length) ? data.segments : [{ dist: '', toll: '' }],
+        routes: []
+      };
+    } else {
+      toast('备份文本格式不正确');
+      return;
+    }
+    save();
+    location.reload();
+  } catch (e) {
+    toast('备份文本无法解析');
+  }
+}
+
+function applyConsumption(val) {
+  V().consumption = val;
+  save();
+  $('consumption').value = val;
+  calc();
+  switchTab('calc');
+  toast('已填入实测油耗 ' + val + ' L/100km');
+}
+
+/* ================= 油箱续航 ================= */
+const WARN_KM = 50;
+
+function bindTank() {
+  $('tankCap').addEventListener('input', e => { V().tankCapacity = e.target.value; save(); updateTank(); });
+  $('cityCons').addEventListener('input', e => { V().cityCons = e.target.value; save(); updateTank(); });
+  $('hwyCons').addEventListener('input', e => { V().hwyCons = e.target.value; save(); updateTank(); });
+  $('pctInput').addEventListener('input', e => {
+    const cap = num(V().tankCapacity);
+    if (cap <= 0) { toast('请先填写油箱容量'); return; }
+    let pct = num(e.target.value);
+    if (pct > 100) pct = 100;
+    if (pct < 0) pct = 0;
+    V().remainLiters = fmt(cap * pct / 100, 1);
+    save(); updateTank();
+  });
+  $('litersInput').addEventListener('input', e => {
+    V().remainLiters = e.target.value;
+    save(); updateTank();
+  });
+  bindTankValues();
+  renderFuelMode();
+}
+function bindTankValues() {
+  const v = V();
+  $('tankCap').value = v.tankCapacity;
+  $('cityCons').value = v.cityCons;
+  $('hwyCons').value = v.hwyCons;
+}
+
+function setFuelMode(m) {
+  V().fuelMode = m;
+  save();
+  renderFuelMode();
+}
+
+function renderFuelMode() {
+  const m = V().fuelMode;
+  $('modeBtnGauge').classList.toggle('active', m === 'gauge');
+  $('modeBtnPercent').classList.toggle('active', m === 'percent');
+  $('modeBtnLiters').classList.toggle('active', m === 'liters');
+  $('modeGauge').style.display = m === 'gauge' ? '' : 'none';
+  $('modePercent').style.display = m === 'percent' ? '' : 'none';
+  $('modeLiters').style.display = m === 'liters' ? '' : 'none';
+  syncFuelInputs();
+}
+
+function syncFuelInputs() {
+  const v = V();
+  const cap = num(v.tankCapacity);
+  const remain = num(v.remainLiters);
+  // 不覆盖正在输入的那个框,避免光标跳动
+  if (document.activeElement !== $('pctInput')) {
+    $('pctInput').value = cap > 0 && remain > 0 ? fmt(remain / cap * 100, 0) : '';
+  }
+  if (document.activeElement !== $('litersInput')) {
+    $('litersInput').value = remain > 0 ? v.remainLiters : '';
+  }
+  // 刻度按钮高亮
+  const frac = cap > 0 ? remain / cap : -1;
+  document.querySelectorAll('#modeGauge .gauge-btns button').forEach(btn => {
+    const f = parseFloat(btn.dataset.f);
+    btn.classList.toggle('active', frac > 0 && Math.abs(frac - f) < 0.03);
+  });
+}
+
+function setGauge(f) {
+  const v = V();
+  const cap = num(v.tankCapacity);
+  if (cap <= 0) { toast('请先填写油箱容量'); return; }
+  v.remainLiters = fmt(cap * f, 1);
+  save();
+  updateTank();
+}
+
+function effCons(val) {
+  const n = num(val);
+  return n > 0 ? n : num(V().consumption);
+}
+
+function updateTank() {
+  const v = V();
+  const cap = Math.max(0, num(v.tankCapacity));
+  let remain = Math.max(0, num(v.remainLiters));
+  if (cap > 0 && remain > cap) { remain = cap; v.remainLiters = fmt(cap, 1); save(); }
+
+  syncFuelInputs();
+
+  const pctText = cap > 0 ? '（约 ' + fmt(remain / cap * 100, 0) + '%）' : '';
+  $('tankNow').innerHTML = '剩余 ' + fmt(remain, 1) + ' L <small>' + pctText + '</small>';
+
+  // 加满预算
+  const price = num(v.fuelPrice);
+  const fillEl = $('fillCost');
+  if (cap <= 0) {
+    fillEl.textContent = '--';
+  } else {
+    const need = Math.max(0, cap - remain);
+    fillEl.innerHTML = price > 0
+      ? '加 ' + fmt(need, 1) + ' L · 约 ¥ ' + fmt(need * price)
+      : '加 ' + fmt(need, 1) + ' L <small>（填油价后显示金额）</small>';
+  }
+
+  const cc = effCons(v.cityCons);
+  const hc = effCons(v.hwyCons);
+  const cityRange = cc > 0 ? remain / cc * 100 : 0;
+  const hwyRange = hc > 0 ? remain / hc * 100 : 0;
+  const hasCons = cc > 0 || hc > 0;
+
+  const cityEl = $('cityRange'), hwyEl = $('hwyRange');
+  cityEl.innerHTML = hasCons && cc > 0 ? fmt(cityRange, 0) + ' <small>km</small>' : '--';
+  hwyEl.innerHTML = hasCons && hc > 0 ? fmt(hwyRange, 0) + ' <small>km</small>' : '--';
+
+  const lowCity = cc > 0 && cityRange < WARN_KM;
+  const lowHwy = hc > 0 && hwyRange < WARN_KM;
+  cityEl.classList.toggle('danger', lowCity && remain > 0);
+  hwyEl.classList.toggle('danger', lowHwy && remain > 0);
+  // 有油但任一续航低于预警值时红色提醒
+  $('tankWarn').style.display = (remain > 0 && hasCons && (lowCity || lowHwy)) ? '' : 'none';
+
+  updateRangeSummary(cityRange, hwyRange);
+}
+
+/* 行程计算页底部的续航摘要 */
+function updateRangeSummary(cityRange, hwyRange) {
+  const box = $('rangeSummary');
+  const v = V();
+  const cap = Math.max(0, num(v.tankCapacity));
+  const remain = Math.max(0, num(v.remainLiters));
+  if (cap <= 0 || v.remainLiters === '' ) {
+    box.innerHTML = '<div class="hint-link">尚未设置油箱信息，点我前往「油箱续航」页设置 →</div>';
+    return;
+  }
+  const cc = effCons(v.cityCons);
+  const hc = effCons(v.hwyCons);
+  if (cityRange === undefined) {
+    cityRange = cc > 0 ? remain / cc * 100 : 0;
+    hwyRange = hc > 0 ? remain / hc * 100 : 0;
+  }
+  if (cc <= 0 && hc <= 0) {
+    box.innerHTML = '<div class="hint-link">剩余 ' + fmt(remain, 1) + ' L · 填写油耗后可显示续航 →</div>';
+    return;
+  }
+  const cls = r => (r < WARN_KM && remain > 0) ? 'danger' : '';
+  box.innerHTML =
+    '<div class="range-line"><span class="rl-k">' + icon('fuel') + '剩余油量</span><b>' + fmt(remain, 1) + ' L</b></div>' +
+    (cc > 0 ? '<div class="range-line"><span class="rl-k">' + icon('city') + '市区续航</span><b class="' + cls(cityRange) + '">' + fmt(cityRange, 0) + ' km</b></div>' : '') +
+    (hc > 0 ? '<div class="range-line"><span class="rl-k">' + icon('road') + '高速续航</span><b class="' + cls(hwyRange) + '">' + fmt(hwyRange, 0) + ' km</b></div>' : '');
+}
+
+/* ================= 车辆成本（按车独立） ================= */
+function addCostRecord() {
+  const v = V();
+  const amount = Math.max(0, num($('costAmount').value));
+  if (amount <= 0) { toast('请输入金额'); return; }
+  if (!Array.isArray(v.costs)) v.costs = [];
+  v.costs.unshift({
+    date: new Date().toLocaleDateString('zh-CN'),
+    amount: +amount.toFixed(2),
+    type: $('costType').value,
+    note: $('costNote').value.trim()
+  });
+  save();
+  $('costAmount').value = '';
+  $('costNote').value = '';
+  renderCost();
+  toast('已保存');
+}
+
+function delCostRecord(i) {
+  V().costs.splice(i, 1);
+  save();
+  renderCost();
+}
+
+function renderCost() {
+  if (!$('costSummary')) return;
+  const v = V();
+  const list = v.costs || [];
+  const now = new Date();
+  const mKey = now.getFullYear() + '/' + (now.getMonth() + 1);
+  const monthList = list.filter(x => String(x.date).split('/').slice(0, 2).join('/') === mKey);
+  const total = monthList.reduce((a, b) => a + num(b.amount), 0);
+
+  if (!monthList.length) {
+    $('costSummary').innerHTML = '<div class="empty">本月还没有费用记录</div>';
+  } else {
+    const cats = {};
+    monthList.forEach(x => { cats[x.type] = (cats[x.type] || 0) + num(x.amount); });
+    const catLines = Object.keys(cats).sort((a, b) => cats[b] - cats[a]).map(k =>
+      `<div class="stat-line"><span class="m">${esc(k)}</span><b>¥ ${fmt(cats[k])}</b></div>`).join('');
+    $('costSummary').innerHTML =
+      `<div class="stat-line"><span class="m">本月合计</span><span class="d">${monthList.length} 笔</span><b style="color:var(--accent)">¥ ${fmt(total)}</b></div>` + catLines;
+  }
+
+  $('costList').innerHTML = list.length ? list.map((x, i) => `
+    <div class="record">
+      <div class="record-top">
+        <span class="date">${esc(x.date)}</span>
+        <span style="display:flex;align-items:center;gap:8px">
+          <span class="badge na">${esc(x.type)}</span>
+          <button class="del-seg" onclick="delCostRecord(${i})">删除</button>
+        </span>
+      </div>
+      <div class="record-detail">¥ ${fmt(num(x.amount))}${x.note ? ' · ' + esc(x.note) : ''}</div>
+    </div>`).join('')
+    : '<div class="empty">暂无记录</div>';
+}
+
+/* ================= 智能管家 ================= */
+/* 实测油耗样本（每条加油记录反算） */
+function fuelSamples(v) {
+  const recs = v.records || [];
+  const pts = [];
+  for (let i = 1; i < recs.length; i++) {
+    const km = recs[i].odo - recs[i - 1].odo;
+    if (km > 0) pts.push({ date: recs[i].date, v: recs[i].fuel / km * 100, km: km });
+  }
+  return pts;
+}
+
+function renderSmart() {
+  const v = V();
+  // 车辆概览
+  const recs = v.records || [];
+  const pts = fuelSamples(v);
+  const avg = pts.length ? pts.reduce((a, p) => a + p.v, 0) / pts.length : 0;
+  const totalCost = recs.reduce((a, r) => a + num(r.cost), 0);
+  const totalKm = recs.length > 1 ? recs[recs.length - 1].odo - recs[0].odo : 0;
+  $('smartDash').innerHTML =
+    `<div class="result-item"><div class="k">平均实测油耗</div><div class="v">${avg ? fmt(avg, 1) : '--'} <small>L/100km</small></div></div>` +
+    `<div class="result-item"><div class="k">累计油费</div><div class="v fuel">¥ ${fmt(totalCost)}</div></div>` +
+    `<div class="result-item"><div class="k">累计里程</div><div class="v">${totalKm > 0 ? fmt(totalKm, 0) : '--'} <small>km</small></div></div>` +
+    `<div class="result-item"><div class="k">加油记录</div><div class="v">${recs.length} <small>次</small></div></div>`;
+
+  renderAnalysis(v, pts, avg);
+  renderMaint(v, recs);
+}
+
+/* AI 驾驶报告：完全基于真实加油记录生成，每次打开智能管家页自动更新 */
+function renderAnalysis(v, pts, avg) {
+  const box = $('driveAnalysis');
+  const recs = v.records || [];
+  if (pts.length < 2) {
+    box.innerHTML = '<div class="empty">再记 ' + (2 - pts.length) + ' 次有效加油<br>即可生成基于真实数据的 AI 驾驶报告</div>';
+    return;
+  }
+
+  /* ---- 基础指标 ---- */
+  const last = pts[pts.length - 1].v;
+  const best = Math.min.apply(null, pts.map(p => p.v));
+  const worst = Math.max.apply(null, pts.map(p => p.v));
+  const spread = worst - best;
+  const diff = last - avg;
+
+  /* ---- 趋势：前半段均值 vs 后半段均值 ---- */
+  let trendTxt = '样本不足，暂无趋势', trendDelta = 0;
+  if (pts.length >= 4) {
+    const half = Math.floor(pts.length / 2);
+    const early = pts.slice(0, half);
+    const late = pts.slice(half);
+    const eAvg = early.reduce((a, p) => a + p.v, 0) / early.length;
+    const lAvg = late.reduce((a, p) => a + p.v, 0) / late.length;
+    trendDelta = lAvg - eAvg;
+    if (trendDelta > 0.5) trendTxt = '上升趋势（+' + fmt(trendDelta, 1) + ' L）';
+    else if (trendDelta < -0.5) trendTxt = '下降趋势（' + fmt(trendDelta, 1) + ' L，更省油）';
+    else trendTxt = '基本持平';
+  }
+
+  /* ---- 经济性 ---- */
+  const price = effPrice(v);
+  const totalKm = pts.reduce((a, p) => a + p.km, 0);
+  const totalFuel = recs.reduce((a, r) => a + num(r.fuel), 0);
+  const totalCost = recs.reduce((a, r) => a + num(r.cost), 0);
+  const perKm = (totalKm > 0 && totalCost > 0) ? totalCost / totalKm : 0;
+
+  /* ---- 综合评分（0-100）：平稳度 + 最近表现 + 趋势 ---- */
+  let score = 100;
+  score -= Math.min(30, spread * 6);                       // 波动越大扣分越多
+  if (diff > 0) score -= Math.min(25, diff / avg * 150);   // 最近高于均值扣分
+  else score -= Math.max(-10, diff / avg * 50);            // 最近低于均值加分（最多+10）
+  if (trendDelta > 0.5) score -= 10;                       // 上升趋势扣分
+  else if (trendDelta < -0.5) score += 5;                  // 下降趋势加分
+  score = Math.max(0, Math.min(100, Math.round(score)));
+  const grade = score >= 85 ? '优秀' : score >= 70 ? '良好' : score >= 55 ? '一般' : '需关注';
+  const gColor = score >= 70 ? 'var(--green)' : score >= 55 ? 'var(--amber)' : 'var(--red)';
+
+  /* ---- 建议列表（按数据触发） ---- */
+  const tips = [];
+  if (diff > avg * 0.08) tips.push('最近一段油耗比平均水平高 ' + fmt(diff, 1) + ' L：检查胎压是否不足、是否长期短途冷启动、空调负载过大；连续偏高建议检查积碳和机油状态。');
+  if (diff < -avg * 0.08) tips.push('最近一段油耗比平均水平低 ' + fmt(-diff, 1) + ' L，驾驶或路况更省油，保持当前习惯。');
+  if (spread > 2.5) tips.push('油耗波动达 ' + fmt(spread, 1) + ' L，市区/高速工况差异明显：到「油箱续航」页分别设置市区和高速油耗，续航估算会更准。');
+  if (trendDelta > 0.5) tips.push('油耗呈上升趋势：若里程数较高，可考虑做一次保养（换机油、清积碳、检查火花塞）。');
+  if (trendDelta < -0.5) tips.push('油耗呈下降趋势：若最近做过保养，说明效果不错，继续保持。');
+  const setCons = effCons(v.consumption);
+  if (setCons > 0 && Math.abs(avg - setCons) > setCons * 0.1) {
+    tips.push('你的实测平均油耗（' + fmt(avg, 1) + ' L）与设置值（' + fmt(setCons, 1) + ' L）偏差超过 10%，建议点记录旁的「用这个油耗去算行程」同步设置，费用估算更准。');
+  }
+  if (!tips.length) tips.push('各项指标都在合理区间。继续按时记录，数据越多报告越准。');
+
+  /* ---- 输出报告 ---- */
+  box.innerHTML =
+    `<div class="stat-line"><span class="m">综合评分</span><b style="color:${gColor}">${score} 分 · ${grade}</b></div>` +
+    `<div class="stat-line"><span class="m">最近实测</span><b>${fmt(last, 1)} L/100km（${diff >= 0 ? '+' : ''}${fmt(diff, 1)} vs 平均）</b></div>` +
+    `<div class="stat-line"><span class="m">历史最佳 / 最差</span><b>${fmt(best, 1)} / ${fmt(worst, 1)} L</b></div>` +
+    `<div class="stat-line"><span class="m">长期趋势</span><b>${trendTxt}</b></div>` +
+    (perKm > 0 ? `<div class="stat-line"><span class="m">每公里油费</span><b>¥ ${fmt(perKm)}</b></div>` : '') +
+    (totalCost > 0 ? `<div class="stat-line"><span class="m">累计加油</span><b>${fmt(totalFuel, 1)} L · ¥ ${fmt(totalCost)}</b></div>` : '') +
+    `<div class="stat-line"><span class="m">统计样本</span><b>${pts.length} 段行程 · ${fmt(totalKm, 0)} km</b></div>` +
+    `<div style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px">` +
+    tips.map(t => `<div class="hint" style="margin-bottom:6px">· ${t}</div>`).join('') +
+    `</div>` +
+    `<div class="hint" style="margin-top:8px;color:var(--ink-3)">报告基于你的真实加油记录自动生成，每次记录后更新。</div>`;
+}
+
+/* 保养提醒 */
+function renderMaint(v, recs) {
+  if (!v.maint || typeof v.maint !== 'object') v.maint = { lastOdo: '', interval: '' };
+  if (document.activeElement !== $('maintLastOdo')) $('maintLastOdo').value = v.maint.lastOdo;
+  if (document.activeElement !== $('maintInterval')) $('maintInterval').value = v.maint.interval;
+
+  const box = $('maintResult');
+  const lastOdo = Math.max(0, num(v.maint.lastOdo));
+  const interval = Math.max(0, num(v.maint.interval)) || 5000;
+  const nowOdo = recs.length ? recs[recs.length - 1].odo : 0;
+  if (!lastOdo || !nowOdo) {
+    box.innerHTML = '<div class="hint">填上次保养里程，并保证「油耗记录」里有最新里程读数</div>';
+    return;
+  }
+  const used = nowOdo - lastOdo;
+  const left = interval - used;
+  if (used < 0) {
+    box.innerHTML = '<div class="hint">上次保养里程大于当前里程表读数，请检查填写</div>';
+  } else if (left <= 0) {
+    box.innerHTML = `<div class="rc rc-danger" style="margin:10px 0 0"><span>已超过保养周期 ${fmt(-left, 0)} km（已跑 ${fmt(used, 0)} km / 周期 ${fmt(interval, 0)} km），请尽快保养</span></div>`;
+  } else if (left < 500) {
+    box.innerHTML = `<div class="rc rc-warn" style="margin:10px 0 0"><span>距下次保养还剩 ${fmt(left, 0)} km（已跑 ${fmt(used, 0)} km / 周期 ${fmt(interval, 0)} km），建议提前预约</span></div>`;
+  } else {
+    box.innerHTML = `<div class="rc rc-ok" style="margin:10px 0 0"><span>距下次保养还剩 ${fmt(left, 0)} km（已跑 ${fmt(used, 0)} km / 周期 ${fmt(interval, 0)} km）</span></div>`;
+  }
+}
+
+function bindMaint() {
+  $('maintLastOdo').addEventListener('input', e => { V().maint.lastOdo = e.target.value; save(); renderMaint(V(), V().records || []); });
+  $('maintInterval').addEventListener('input', e => { V().maint.interval = e.target.value; save(); renderMaint(V(), V().records || []); });
+}
+
+/* ================= 高德路线规划（融合在「行程路段」中，Key 仅存本机） ================= */
+async function amapFetch(url) {
+  let data;
+  try {
+    const res = await fetch(url);
+    data = await res.json();
+  } catch (e) {
+    throw new Error('网络请求失败，请检查网络连接（离线状态无法规划路线）');
+  }
+  if (data.status !== '1') throw new Error(amapErrorText(data.info, data.infocode));
+  return data;
+}
+
+/* 高德错误码 → 中文可操作提示（依据高德官方 Web Service 错误码表） */
+function amapErrorText(info, code) {
+  const map = {
+    '10001': 'Key 不正确或已过期，请检查是否复制完整（应为 32 位字符）',
+    '10002': '该 Key 没有相应服务权限：请确认申请的是「Web服务」Key，并已开通地理编码、驾车路径规划服务',
+    '10003': '今日调用量已超限，次日 0 点自动恢复',
+    '10004': '请求过于频繁，请约 1 分钟后再试',
+    '10005': '该 Key 设置了 IP 白名单，浏览器直连无法使用，请在高德控制台清除 IP 白名单',
+    '10007': '数字签名校验失败：请在高德控制台关闭该 Key 的「数字签名」（本应用不使用签名）',
+    '10009': 'Key 平台类型不符：添加 Key 时「服务平台」必须选「Web服务」，不能选「Web端 / JS API」',
+    '10010': '单 IP 访问超限被暂停，请稍后再试或在高德控制台调整配额',
+    '10013': '该 Key 已被删除，请重新申请并填入',
+    '10014': '访问频率超限，请稍后再试',
+    '10019': '服务总 QPS 超限，请稍后再试',
+    '10020': '该 Key 调用频率超限，请稍后再试',
+    '10026': '账号因违规被封禁，请在高德控制台提交工单申诉',
+    '20800': '起点或终点不在中国大陆，高德驾车规划仅支持大陆地区',
+    '20801': '起点或终点附近找不到道路，请把地点写得更具体（如「城市 + 区县 / 地标」）',
+    '20802': '路线计算失败，通常是道路不通，请更换或补充更具体的起终点',
+    '20803': '起终点距离过远，超出驾车规划范围，请拆成多段行程分别规划',
+    '40000': '服务余额不足，请在高德控制台查看配额',
+    '40002': '所购服务已到期，请在高德控制台查看'
+  };
+  const c = String(code || '');
+  return map[c] || ('高德接口返回错误：' + (info || '未知错误') + (c ? '（' + c + '）' : ''));
+}
+
+/* 本次运行内的结果缓存：同一城市 / 同一起终点不重复请求，降低频率限制风险 */
+const amapGeoCache = new Map();
+const amapRouteCache = new Map();
+
+async function amapGeocode(address, key) {
+  const ck = address.trim().toLowerCase();
+  if (amapGeoCache.has(ck)) return amapGeoCache.get(ck);
+  const data = await amapFetch('https://restapi.amap.com/v3/geocode/geo?address=' +
+    encodeURIComponent(address) + '&key=' + encodeURIComponent(key));
+  if (!data.geocodes || !data.geocodes.length || !data.geocodes[0].location) {
+    throw new Error('无法定位「' + address + '」，请补充城市名或写得更具体（如：合肥南站）');
+  }
+  amapGeoCache.set(ck, data.geocodes[0].location);
+  return data.geocodes[0].location;
+}
+
+async function amapDriving(origin, destination, key) {
+  const ck = origin + '>' + destination;
+  if (amapRouteCache.has(ck)) return amapRouteCache.get(ck);
+  const data = await amapFetch('https://restapi.amap.com/v3/direction/driving?origin=' +
+    encodeURIComponent(origin) + '&destination=' + encodeURIComponent(destination) +
+    '&strategy=0&key=' + encodeURIComponent(key));
+  const path = data.route && data.route.paths && data.route.paths[0];
+  if (!path) throw new Error('未返回路线，请更换或补充更具体的起终点');
+  const r = {
+    km: +(Number(path.distance) / 1000).toFixed(1),
+    mins: Math.max(1, Math.round(Number(path.duration) / 60)),
+    toll: (path.tolls != null && path.tolls !== '') ? Math.max(0, num(path.tolls)) : 0
+  };
+  amapRouteCache.set(ck, r);
+  return r;
+}
+
+/* ================= 高德 Key 设置（仅存本机） ================= */
+function openAmapKeySheet() {
+  openInputSheet(
+    '设置高德地图 Key（Web服务）',
+    '粘贴 32 位 Key（服务平台必须是「Web服务」，不是 Web端 / JS API）',
+    state.amapKey || '',
+    '保存 Key',
+    val => {
+      const k = (val || '').trim();
+      if (!k) {
+        if (state.amapKey && confirm('确定清除已保存的 Key 吗？')) {
+          state.amapKey = '';
+          save();
+          renderAmapKeyHint();
+          toast('已清除 Key');
+        }
+        return;
+      }
+      if (!/^[0-9a-f]{32}$/i.test(k)) { toast('Key 格式不正确，应为 32 位字符，请检查是否复制完整'); return; }
+      state.amapKey = k.toLowerCase();
+      save();
+      renderAmapKeyHint();
+      toast('Key 已保存，正在自动规划已填写的路段…');
+      // 保存后立即为所有填好起终点但还没有结果的路段自动规划
+      state.segments.forEach((s, idx) => {
+        if ((s.from || '').trim() && (s.to || '').trim() && !planDoneFor(idx)) enqueuePlan(idx, true);
+      });
+    }
+  );
+}
+
+function renderAmapKeyHint() {
+  const el = $('amapKeyHint');
+  if (!el) return;
+  if (amapKey()) {
+    el.innerHTML = '高德 Key 已设置（尾号 ' + esc(state.amapKey.slice(-4)) +
+      '）：在每段填好<b>出发地、目的地</b>后，里程和高速费会自动获取。' +
+      '<button class="link-btn" onclick="openAmapKeySheet()">修改</button> · ' +
+      '<button class="link-btn" onclick="clearAmapKey()">清除</button>';
+  } else {
+    el.innerHTML =
+      '在每段填好<b>出发地、目的地</b>后，里程和高速费会自动获取（高德实时数据）。首次使用需设置一个免费的高德「Web服务」Key（仅存本机）：' +
+      '<button class="link-btn" onclick="openAmapKeySheet()">点此设置</button><br>' +
+      '免费申请（约 1 分钟）：打开 <a href="https://lbs.amap.com/dev/" target="_blank" rel="noopener">lbs.amap.com 控制台</a> 注册登录 → 创建应用 →「添加 Key」→ 服务平台务必选择「<b>Web服务</b>」（不能选 Web端 / JS API，否则报 10009）→ 复制 32 位 Key 粘贴回来。地理编码和驾车路径规划默认已开通，个人免费额度日常使用足够。';
+  }
+}
+
+function clearAmapKey() {
+  if (!confirm('确定清除已保存的 Key 吗？')) return;
+  state.amapKey = '';
+  save();
+  renderAmapKeyHint();
+  toast('已清除 Key');
+}
+
+/* ================= 初始化 ================= */
+load();
+renderVehicleBar();
+bindVehicle();
+bindTank();
+bindConverters();
+bindMaint();
+renderSegments();
+renderRoutes();
+renderAmapKeyHint();
+calc();
+updateTank();
+
+/* ================= PWA 离线缓存 ================= */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
+</script>
+</body>
+</html>
